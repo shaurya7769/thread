@@ -18,8 +18,12 @@ sudo apt-get install -y \
 # config-pin is often pre-installed or part of beaglebone-scripts
 sudo apt-get install -y config-pin || echo "Note: config-pin not found in apt, checking if it exists..."
 
-# Attempt to install common PRU support if not present
-sudo apt-get install -y am335x-pru-package || echo "Note: am335x-pru-package not found, skipping."
+# Ensure PRU headers are available
+if [ ! -d "/usr/lib/ti/pru-software-support-package/include" ]; then
+    echo "PRU headers not found. Cloning Software Support Package..."
+    sudo mkdir -p /usr/lib/ti
+    sudo git clone --depth 1 https://github.com/dinuxman/pru-software-support-package.git /usr/lib/ti/pru-software-support-package
+fi
 
 echo "---------------------------------------------------------"
 echo "  2. Initializing Hardware Ports (SPI & GPIO)            "

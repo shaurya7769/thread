@@ -3,7 +3,6 @@ from PyQt5.QtWidgets import QApplication
 from network.tcp_client import SensorClient
 from logic.calc_engine import CalculationEngine
 from gui.dashboard import Dashboard
-from cloud.railman_push import CloudPusher
 
 class RailApp:
     def __init__(self):
@@ -12,15 +11,11 @@ class RailApp:
         # 1. Logic Engine
         self.logic = CalculationEngine(gauge_base=1676.0)
         
-        # 2. Cloud Pusher
-        self.cloud = CloudPusher()
-        self.cloud.start()
-        
-        # 3. UI Dashboard
+        # 2. UI Dashboard
         self.gui = Dashboard()
         self.gui.show()
         
-        # 4. Network Client
+        # 3. Network Client
         self.network = SensorClient(host="localhost", port=5060, callback=self.on_data)
         self.network.start()
 
@@ -31,9 +26,6 @@ class RailApp:
         
         # Update UI
         self.gui.update_data(processed)
-        
-        # Push to Cloud
-        self.cloud.push_data(processed)
 
     def run(self):
         try:
