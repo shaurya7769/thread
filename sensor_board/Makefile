@@ -9,7 +9,7 @@ PRU_INC = $(PRU_CGT)/include
 all: sensor_service pru_firmware
 
 sensor_service: src/tcp_server.c src/acquisition.c
-	$(CC) $(CFLAGS) -o sensor_service src/tcp_server.c src/acquisition.c $(LIBS)
+	$(CC) $(CFLAGS) -o sensor_service src/tcp_server.c src/acquisition.c $(LIBS) -lm
 
 pru_firmware: pru/encoder_pru.c
 	@echo "Checking for clpru..."

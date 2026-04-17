@@ -5,7 +5,13 @@
 #include <linux/spi/spidev.h>
 #include <stdint.h>
 #include <sys/mman.h>
+#include <math.h>
+#include <time.h>
 #include "common.h"
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 #define PRU_SHARED_RAM 0x4A310000 
 #define PRU_RAM_SIZE 0x3000
@@ -61,6 +67,23 @@ int init_hardware() {
         perror("mmap failed");
         return -1;
     }
+
+    // 3. SCL3300 Initialization Sequence
+    uint8_t wakeup[] = {0x1C, 0x00, 0x00, 0xAD}; // Wake up
+    uint8_t mode1[]  = {0x14, 0x00, 0x00, 0xC7}; // Change to mode 1
+    
+    struct spi_ioc_transfer tr[1] = {0};
+    tr[0].tx_buf = (unsigned long)wakeup;
+    tr[0].len = 4;
+    tr[0].speed_hz = 2000000;
+    
+    ioctl(spi_fd, SPI_IOC_MESSAGE(1), tr);
+    usleep(100000); // 100ms
+    
+    tr[0].tx_buf = (unsigned long)mode1;
+    ioctl(spi_fd, SPI_IOC_MESSAGE(1), tr);
+    usleep(100000); // 100ms
+
     return 0;
 }
 

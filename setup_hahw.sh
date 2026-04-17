@@ -12,9 +12,11 @@ sudo apt-get install -y \
     python3-requests \
     python3-pip \
     git \
-    ti-pru-cgt-v2.3 \
-    pru-software-support-package \
-    config-pin
+    ti-pru-cgt \
+    pru-software-support-package
+
+# config-pin is often pre-installed or part of beaglebone-scripts
+sudo apt-get install -y config-pin || echo "Note: config-pin not found in apt, checking if it exists..."
 
 # Attempt to install common PRU support if not present
 sudo apt-get install -y am335x-pru-package || echo "Note: am335x-pru-package not found, skipping."
