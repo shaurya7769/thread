@@ -49,20 +49,31 @@ if [ -d /usr/share/ti/cgt-pru/bin ]; then
 fi
 
 echo "---------------------------------------------------------"
-echo "  4. Building the Distributed Architecture               "
+echo "  4. Building & Loading the Distributed Architecture      "
 echo "---------------------------------------------------------"
 cd sensor_board
 make clean
 make
+
+# Copy firmware to standard location
+sudo cp pru/encoder_pru.out /lib/firmware/am335x-pru1-fw
+
+# Stop/Start PRU1 to load new firmware
+echo "stop" | sudo tee /sys/class/remoteproc/remoteproc1/state || true
+echo "am335x-pru1-fw" | sudo tee /sys/class/remoteproc/remoteproc1/firmware
+echo "start" | sudo tee /sys/class/remoteproc/remoteproc1/state
 cd ..
 
 echo "---------------------------------------------------------"
 echo "  5. Verification & Testing                              "
 echo "---------------------------------------------------------"
-if [ -f "sensor_board/sensor_service" ]; then
-    echo "[SUCCESS] Sensor Board Service compiled."
+PRU1_STATE=$(cat /sys/class/remoteproc/remoteproc1/state)
+echo "PRU1 STATUS: $PRU1_STATE"
+
+if [ "$PRU1_STATE" == "running" ]; then
+    echo "[SUCCESS] PRU1 firmware loaded and running."
 else
-    echo "[ERROR] Sensor Board Service failed to build."
+    echo "[ERROR] PRU1 failed to start."
 fi
 
 if [ -f "main_board/main.py" ]; then

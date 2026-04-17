@@ -70,14 +70,26 @@ class Dashboard(QWidget):
         header.setFixedHeight(70)
         header.setStyleSheet(f"background-color: {HEADER_BG}; border-bottom: 2px solid {ACCENT_GREEN};")
         h_layout = QHBoxLayout(header)
-        h_layout.setContentsMargins(25, 0, 25, 0)
+        h_layout.setContentsMargins(15, 0, 25, 0)
         
-        title = QLabel("TWIST MODULE — HAHW ARCHITECTURE")
+        self.exit_btn = QPushButton("EXIT")
+        self.exit_btn.setFixedSize(80, 40)
+        self.exit_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: #C62828; color: white; border-radius: 6px; font-weight: bold;
+            }}
+            QPushButton:pressed {{ background-color: #A00000; }}
+        """)
+        self.exit_btn.clicked.connect(self.close)
+        
+        title = QLabel("TWIST MODULE — HAHW")
         title.setStyleSheet(f"color: white; font-size: 16pt; font-weight: bold; letter-spacing: 1.5px;")
         
         self.status_lbl = QLabel("SYSTEM: READY")
         self.status_lbl.setStyleSheet(f"color: {ACCENT_GREEN}; font-size: 10pt; font-weight: bold; background: #0A2E1C; padding: 5px 12px; border-radius: 12px;")
         
+        h_layout.addWidget(self.exit_btn)
+        h_layout.addSpacing(20)
         h_layout.addWidget(title)
         h_layout.addStretch()
         h_layout.addWidget(self.status_lbl)

@@ -35,15 +35,14 @@ class CalculationEngine:
         
         target_ch = dist_mm - self.twist_base
         if target_ch >= 0:
-            # Find closest historical point
-            best_cl = 0.0
-            min_err = 999999
-            for ch, cl in self.history:
-                err = abs(ch - target_ch)
-                if err < min_err:
-                    min_err = err
-                    best_cl = cl
-                if err < 50: break # Close enough optimization
+            # OPTIMIZED: Search backwards from newest to find the target_ch base point
+            best_cl = crosslevel
+            # Iterate backwards through deque
+            for i in range(len(self.history) - 1, -1, -1):
+                h_dist, h_cl = self.history[i]
+                if h_dist <= target_ch:
+                    best_cl = h_cl
+                    break
             
             twist = abs(crosslevel - best_cl)
             twist_rate = twist / (self.twist_base / 1000.0)

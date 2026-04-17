@@ -67,6 +67,9 @@ int init_hardware() {
         perror("mmap failed");
         return -1;
     }
+    
+    // Clear PRU memory to ensure encoder starts at 0
+    pru_mem[0] = 0; 
 
     // 3. SCL3300 Initialization Sequence
     uint8_t wakeup[] = {0x1C, 0x00, 0x00, 0xAD}; // Wake up
@@ -88,8 +91,9 @@ int init_hardware() {
 }
 
 double read_scl3300() {
+    static int crc_error_count = 0;
+    
     // SCL3300 Read Tilt (X-axis) - 32-bit Off-frame protocol
-    // Command: 0x040000F7 -> [0x04, 0x00, 0x00, 0xF7]
     uint8_t tx[] = {0x04, 0x00, 0x00, 0xF7}; 
     uint8_t rx[4] = {0};
     struct spi_ioc_transfer tr = {
@@ -101,24 +105,39 @@ double read_scl3300() {
         .bits_per_word = 8,
     };
     
-    if (ioctl(spi_fd, SPI_IOC_MESSAGE(1), &tr) < 0) return 0.0;
-    
-    // Validate CRC of the frame received (rx[3] is CRC)
-    uint8_t calc = calculate_crc8(rx, 3);
-    if (calc != rx[3]) {
-        // Log CRC error if needed
-        return 0.0; 
+    if (ioctl(spi_fd, SPI_IOC_MESSAGE(1), &tr) < 0) {
+        crc_error_count++;
+    } else {
+        // Validate CRC of the frame received (rx[3] is CRC)
+        uint8_t calc = calculate_crc8(rx, 3);
+        if (calc != rx[3]) {
+            crc_error_count++;
+        } else {
+            crc_error_count = 0; // Reset on success
+            int16_t raw = (int16_t)((rx[1] << 8) | rx[2]);
+            double g = (double)raw / 12000.0;
+            if (g > 1.0) g = 1.0;
+            if (g < -1.0) g = -1.0;
+            return asin(g) * (180.0 / M_PI);
+        }
     }
 
-    // Convert 16-bit payload from frame (rx[1]=MSB, rx[2]=LSB)
-    int16_t raw = (int16_t)((rx[1] << 8) | rx[2]);
-    
-    // Sensitivity for SCL3300 (Mode 1: 12000 LSB/g)
-    // Degrees = arcsin(raw / 12000)
-    double g = (double)raw / 12000.0;
-    if (g > 1.0) g = 1.0;
-    if (g < -1.0) g = -1.0;
-    return asin(g) * (180.0 / M_PI);
+    // Auto-reinitialize if sensor seems disconnected or glitched
+    if (crc_error_count > 5) {
+        printf("[SENSOR] SCL3300 repeated error. Re-initializing...\n");
+        // Wake up and mode sequence again
+        uint8_t wakeup[] = {0x1C, 0x00, 0x00, 0xAD}; 
+        uint8_t mode1[]  = {0x14, 0x00, 0x00, 0xC7};
+        struct spi_ioc_transfer tr_init = { .tx_buf = (unsigned long)wakeup, .len = 4, .speed_hz = 2000000 };
+        ioctl(spi_fd, SPI_IOC_MESSAGE(1), &tr_init);
+        usleep(50000);
+        tr_init.tx_buf = (unsigned long)mode1;
+        ioctl(spi_fd, SPI_IOC_MESSAGE(1), &tr_init);
+        usleep(50000);
+        crc_error_count = 0; // Attempt reset
+    }
+
+    return 0.0;
 }
 
 int32_t read_encoder() {

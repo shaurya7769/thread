@@ -15,17 +15,27 @@ class RailApp:
         self.gui = Dashboard()
         self.gui.show()
         
-        # 3. Network Client
+        # Latest data state
+        self.latest_processed = None
+        
+        # 3. UI Refresh Timer (30Hz = 33ms)
+        self.ui_timer = QTimer()
+        self.ui_timer.timeout.connect(self.refresh_ui)
+        self.ui_timer.start(33)
+        
+        # 4. Network Client (Receives at 100Hz)
         self.network = SensorClient(host="localhost", port=5060, callback=self.on_data)
         self.network.start()
 
     def on_data(self, raw_packet):
-        """Callback from Network Thread"""
-        # Process through logic engine
-        processed = self.logic.process_packet(raw_packet)
+        """Callback from Network Thread (100Hz)"""
+        # Process logic as fast as possible in network thread
+        self.latest_processed = self.logic.process_packet(raw_packet)
         
-        # Update UI
-        self.gui.update_data(processed)
+    def refresh_ui(self):
+        """Standard UI Refresh (30Hz)"""
+        if self.latest_processed:
+            self.gui.update_data(self.latest_processed)
 
     def run(self):
         try:
