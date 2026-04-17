@@ -58,10 +58,13 @@ make
 # Copy firmware to standard location
 sudo cp pru/encoder_pru.out /lib/firmware/am335x-pru1-fw
 
-# Stop/Start PRU1 to load new firmware
+# Robust stop and load logic
+echo "Initializing PRU1 Core..."
 echo "stop" | sudo tee /sys/class/remoteproc/remoteproc1/state || true
-echo "am335x-pru1-fw" | sudo tee /sys/class/remoteproc/remoteproc1/firmware
-echo "start" | sudo tee /sys/class/remoteproc/remoteproc1/state
+sleep 1
+echo "am335x-pru1-fw" | sudo tee /sys/class/remoteproc/remoteproc1/firmware || echo "Error setting firmware name"
+sleep 1
+echo "start" | sudo tee /sys/class/remoteproc/remoteproc1/state || echo "Error: Start failed. Make sure firmware exists in /lib/firmware"
 cd ..
 
 echo "---------------------------------------------------------"

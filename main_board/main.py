@@ -1,7 +1,7 @@
-import sys
 from PyQt5.QtWidgets import QApplication
+from PyQt5.QtCore import QTimer
 from network.tcp_client import SensorClient
-from logic.calc_engine import CalculationEngine
+ from logic.calc_engine import CalculationEngine
 from gui.dashboard import Dashboard
 
 class RailApp:

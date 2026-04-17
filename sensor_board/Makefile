@@ -19,10 +19,12 @@ sensor_service: src/tcp_server.c src/acquisition.c
 
 pru_firmware: pru/encoder_pru.c
 	@echo "Checking for clpru..."
-	@if command -v clpru >/dev/null 2>&1; then \
-		clpru $(PRU_INC) -O2 pru/encoder_pru.c -z pru.cmd -o encoder_pru.out; \
+	@if [ -d "$(PRU_CGT)/bin" ]; then \
+		$(PRU_CGT)/bin/clpru $(PRU_INC) -O2 pru/encoder_pru.c -z pru/pru.cmd -o pru/encoder_pru.out; \
+	elif command -v clpru >/dev/null 2>&1; then \
+		clpru $(PRU_INC) -O2 pru/encoder_pru.c -z pru/pru.cmd -o pru/encoder_pru.out; \
 	else \
-		$(PRU_CGT)/bin/clpru $(PRU_INC) -O2 pru/encoder_pru.c -z pru.cmd -o encoder_pru.out || echo ">> Compilation failure"; \
+		echo ">> Compilation failure: clpru not found"; exit 1; \
 	fi
 
 clean:

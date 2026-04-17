@@ -32,7 +32,7 @@ class MetricCard(QFrame):
         layout.setContentsMargins(20, 15, 20, 15)
         
         title_lbl = QLabel(title.upper())
-        title_lbl.setStyleSheet(f"color: #8A94A6; font-size: 11pt; font-weight: bold; letter-spacing: 1px;")
+        title_lbl.setStyleSheet(f"color: #8A94A6; font-size: 11pt; font-weight: bold;")
         layout.addWidget(title_lbl)
         
         val_layout = QHBoxLayout()
@@ -83,7 +83,7 @@ class Dashboard(QWidget):
         self.exit_btn.clicked.connect(self.close)
         
         title = QLabel("TWIST MODULE — HAHW")
-        title.setStyleSheet(f"color: white; font-size: 16pt; font-weight: bold; letter-spacing: 1.5px;")
+        title.setStyleSheet(f"color: white; font-size: 16pt; font-weight: bold;")
         
         self.status_lbl = QLabel("SYSTEM: READY")
         self.status_lbl.setStyleSheet(f"color: {ACCENT_GREEN}; font-size: 10pt; font-weight: bold; background: #0A2E1C; padding: 5px 12px; border-radius: 12px;")
