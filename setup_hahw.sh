@@ -86,5 +86,5 @@ fi
 echo "SETUP COMPLETE."
 echo "---------------------------------------------------------"
 echo "TERMINAL 1: sudo ./sensor_board/sensor_service"
-echo "TERMINAL 2: python3 integrated_ui.py"
+echo "TERMINAL 2: python3 main_board/main.py"
 echo "---------------------------------------------------------"

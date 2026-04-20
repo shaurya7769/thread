@@ -23,4 +23,5 @@ SECTIONS
     .sysmem         > PRU_DMEM_0_1, PAGE 1
     .cinit          > PRU_DMEM_0_1, PAGE 1
     .resource_table > PRU_DMEM_0_1, PAGE 1
+    .rodata         > PRU_DMEM_0_1, PAGE 1
 }
