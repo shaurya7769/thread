@@ -1,7 +1,14 @@
+import sys
+import os
+from PyQt5.QtWidgets import QApplication
+from PyQt5.QtCore import QTimer
+from network.tcp_client import SensorClient
+from logic.calc_engine import CalculationEngine
 from gui.dashboard import MainDashboard
 
 class RailApp:
     def __init__(self):
+        # Initialize QApplication first
         self.app = QApplication(sys.argv)
         
         # 1. Logic Engine
@@ -10,7 +17,12 @@ class RailApp:
         # 2. UI Dashboard (Rich Portfolio Design)
         self.gui = MainDashboard()
         self.gui.topbar.sig_exit.connect(self.close_app)
-        self.gui.showFullScreen()
+        
+        # Attempt full screen, fallback to normal if needed
+        try:
+            self.gui.showFullScreen()
+        except:
+            self.gui.show()
         
         # Latest data state
         self.latest_processed = None
