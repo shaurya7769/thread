@@ -155,10 +155,10 @@ class Dashboard(QWidget):
             self.status_lbl.setStyleSheet(self.status_lbl.styleSheet().replace("#C62828", ACCENT_GREEN).replace("#2E0A0A", "#0A2E1C"))
 
         # Log to terminal (circular log)
-        ts = data.get('timestamp', 0)
-        log_entry = f"[{ts}] RX PKT: CL={data['crosslevel']:.2f} | TWIST={data['twist_rate']:.3f} | DIST={data['distance']:.3f}\n"
+        log_entry = f"RX PKT: CL={data['crosslevel']:.2f} | TWIST={data['twist_rate']:.3f} | DIST={data['distance']:.3f}\n"
         self.terminal.append(log_entry)
-        if self.terminal.blockCount() > 50:
+        
+        if self.terminal.document().blockCount() > 50:
             cursor = self.terminal.textCursor()
             cursor.movePosition(QTextCursor.Start)
             cursor.select(QTextCursor.BlockUnderCursor)
