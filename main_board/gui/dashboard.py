@@ -1,18 +1,33 @@
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
-from gui.widgets import *
+from .widgets import *
 
-# ── DASHBOARD PAGE (2x2 Grid) ────────────────────────────────────────────────
+def _btn_factory(label, h=52, w=120, ss=""):
+    b = QPushButton(label)
+    b.setFixedHeight(h)
+    if w: b.setFixedWidth(w)
+    if ss: b.setStyleSheet(ss)
+    return b
+
+def get_ss_p(color, bg_color):
+    return (
+        f"QPushButton{{ background:{bg_color}; border:2px solid {color};"
+        f" border-radius:8px; color:{color}; font-size:12pt; font-weight:bold; padding:0 16px; }}"
+        f"QPushButton:pressed{{ background:{color}; color:#FFFFFF; }}"
+    )
+
+# ── DASHBOARD PAGE ──────────────────────────────────────────────────────────
 class DashboardPage(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.lay = QVBoxLayout(self)
-        self.lay.setContentsMargins(15, 15, 15, 15)
-        self.lay.setSpacing(15)
+        self.setStyleSheet("background:#ECEFF4;")
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(8, 8, 8, 4)
+        lay.setSpacing(4)
         
         grid = QGridLayout()
-        grid.setSpacing(15)
+        grid.setSpacing(8)
         self.cards = {
             'gauge':      MetricCard('gauge', 'Track Gauge', 'mm', NEON),
             'crosslevel': MetricCard('crosslevel', 'Cross Level', 'mm', CYAN),
@@ -23,14 +38,56 @@ class DashboardPage(QWidget):
         grid.addWidget(self.cards['crosslevel'], 0, 1)
         grid.addWidget(self.cards['twist'], 1, 0)
         grid.addWidget(self.cards['distance'], 1, 1)
-        self.lay.addLayout(grid)
+        lay.addLayout(grid, 1)
+        
+        sep = QFrame()
+        sep.setFixedHeight(1)
+        sep.setStyleSheet("background:#DDE3EA; border:none;")
+        lay.addWidget(sep)
+        
+        # Bottom controls from main_ui.py
+        bot_w = QWidget()
+        bot_w.setFixedHeight(62)
+        bot = QHBoxLayout(bot_w)
+        bot.setContentsMargins(4, 4, 4, 4)
+        bot.setSpacing(10)
+        
+        ss_start = f"QPushButton{{ background:{NEON}; border:2px solid {NEON}; border-radius:8px; color:#FFFFFF; font-size:12pt; font-weight:bold; }}"
+        ss_pause = get_ss_p(CYAN, "#E3EEFA")
+        ss_entry = get_ss_p(CYAN, "#E3EEFA")
+        ss_cal   = get_ss_p(AMBER, "#FFF3E0")
+        
+        self.btn_start = _btn_factory("▶  START", 52, 120, ss_start)
+        self.btn_pause = _btn_factory("⏸  PAUSE", 52, 120, ss_pause)
+        self.btn_entry = _btn_factory("DATA ENTRY", 52, 130, ss_entry)
+        self.btn_cal   = _btn_factory("CALIBRATE", 52, 120, ss_cal)
+        
+        self.stat_lbl = QLabel("○  IDLE  0 pts")
+        self.stat_lbl.setStyleSheet("color:#8A94A6; font-family:'Courier New'; font-size:10pt; font-weight:500;")
+        
+        bot.addStretch()
+        bot.addWidget(self.btn_start)
+        bot.addWidget(self.btn_pause)
+        
+        vsep = QFrame()
+        vsep.setFixedSize(1, 36)
+        vsep.setStyleSheet("background:#DDE3EA; border:none;")
+        bot.addWidget(vsep)
+        
+        bot.addWidget(self.btn_entry)
+        bot.addWidget(self.btn_cal)
+        bot.addSpacing(8)
+        bot.addWidget(self.stat_lbl)
+        bot.addStretch()
+        
+        lay.addWidget(bot_w)
 
     def update_data(self, data):
         for k, card in self.cards.items():
             if k in data:
                 card.refresh(data[k])
 
-# ── DATA ENTRY PAGE (3 Panels) ───────────────────────────────────────────────
+# ── DATA ENTRY PAGE ───────────────────────────────────────────────────────────
 class DataEntryPage(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -39,33 +96,20 @@ class DataEntryPage(QWidget):
         
         title = QLabel("SURVEY DATA ENTRY")
         title.setAlignment(Qt.AlignCenter)
-        title.setStyleSheet("color: #1565C0; font-size: 14pt; font-weight: 800; letter-spacing: 2px; margin-bottom: 5px;")
+        title.setStyleSheet("color: #1565C0; font-size: 14pt; font-weight: 800; margin-bottom: 5px;")
         self.lay.addWidget(title)
         
         panels = QHBoxLayout()
         panels.setSpacing(15)
         
-        # Panel 1: Station Params
-        p1 = QFrame(); p1.setObjectName("Panel")
-        p1_lay = QVBoxLayout(p1)
-        p1_lay.addWidget(QLabel("STATION PARAMETERS"))
-        p1_lay.addStretch()
-        panels.addWidget(p1, 1)
-        
-        # Panel 2: Gauge Params
-        p2 = QFrame(); p2.setObjectName("Panel")
-        p2_lay = QVBoxLayout(p2)
-        p2_lay.addWidget(QLabel("GAUGE FREQUENCY"))
-        p2_lay.addStretch()
-        panels.addWidget(p2, 1)
-        
-        # Panel 3: Twist Params
-        p3 = QFrame(); p3.setObjectName("Panel")
-        p3_lay = QVBoxLayout(p3)
-        p3_lay.addWidget(QLabel("TWIST PARAMETERS"))
-        p3_lay.addStretch()
-        panels.addWidget(p3, 1)
-        
+        for name in ["STATION PARAMETERS", "GAUGE FREQUENCY", "TWIST PARAMETERS"]:
+            p = QFrame(); p.setObjectName("Panel")
+            p.setStyleSheet("QFrame#Panel { background:#FFFFFF; border:1px solid #DDE3EA; border-radius:10px; }")
+            p_lay = QVBoxLayout(p)
+            p_lay.addWidget(QLabel(name))
+            p_lay.addStretch()
+            panels.addWidget(p, 1)
+            
         self.lay.addLayout(panels)
 
 # ── MAIN DASHBOARD CONTAINER ─────────────────────────────────────────────────
@@ -73,7 +117,6 @@ class MainDashboard(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedSize(1024, 600)
-        self.setStyleSheet(SS)
         
         self.lay = QVBoxLayout(self)
         self.lay.setContentsMargins(0, 0, 0, 0)
@@ -88,30 +131,15 @@ class MainDashboard(QWidget):
         self.page_stack.addWidget(self.dash_page)
         self.page_stack.addWidget(self.entry_page)
         
-        # Bottom Bar
-        self.bot_bar = QWidget()
-        self.bot_bar.setFixedHeight(55)
-        self.bot_bar.setStyleSheet("background: #E8EEF4; border-top: 1px solid #DDE3EA;")
-        bot_lay = QHBoxLayout(self.bot_bar)
-        bot_lay.setContentsMargins(20, 0, 20, 0)
-        
-        self.btn_start = _btn("▶ START", "START", 38, 120)
-        self.btn_pause = _btn("⏸ PAUSE", "PAUSE", 38, 120)
-        self.btn_entry = _btn("DATA ENTRY", "SECONDARY", 38, 140)
-        self.btn_cal   = _btn("CALIBRATE", "SECONDARY", 38, 140)
-        
-        bot_lay.addStretch()
-        bot_lay.addWidget(self.btn_start)
-        bot_lay.addWidget(self.btn_pause)
-        bot_lay.addWidget(self.btn_entry)
-        bot_lay.addWidget(self.btn_cal)
-        bot_lay.addStretch()
-        
         self.lay.addWidget(self.topbar)
         self.lay.addWidget(self.page_stack, 1)
-        self.lay.addWidget(self.bot_bar)
         
-        # Wire Page Switching
+        # Signals
+        self.btn_start = self.dash_page.btn_start
+        self.btn_pause = self.dash_page.btn_pause
+        self.btn_entry = self.dash_page.btn_entry
+        self.btn_cal   = self.dash_page.btn_cal
+        
         self.btn_entry.clicked.connect(self._toggle_page)
 
     def _toggle_page(self):

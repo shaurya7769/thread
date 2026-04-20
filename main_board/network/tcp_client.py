@@ -4,9 +4,9 @@ import threading
 import time
 
 # Packet format according to common.h:
-# [Sync(2s)|Seq(H)|TS(Q)|Dist(d)|Tilt(d)|Gauge(f)|CRC(B)]
-# Format: <HHQddfB (Little Endian)
-PACKET_FMT = "<HHQddfB"
+# [Sync(I)|Seq(H)|TS(Q)|Dist(d)|Tilt(d)|Gauge(f)|CRC(B)|Status(B)]
+# Total 36 bytes
+PACKET_FMT = "<I H Q d d f B B"
 PACKET_SIZE = struct.calcsize(PACKET_FMT)
 
 class SensorClient(threading.Thread):
@@ -16,6 +16,7 @@ class SensorClient(threading.Thread):
         self.port = port
         self.callback = callback
         self.running = True
+        self.health_reported = False
 
     def run(self):
         while self.running:
@@ -28,26 +29,37 @@ class SensorClient(threading.Thread):
                     
                     while self.running:
                         data = s.recv(PACKET_SIZE)
-                        if not data:
+                        if not data or len(data) < PACKET_SIZE:
                             break
                         
-                        if len(data) == PACKET_SIZE:
-                            unpacked = struct.unpack(PACKET_FMT, data)
-                            sync, seq, ts, dist, tilt, gauge, crc = unpacked
-                            
-                            if sync == 0xAA55:
-                                packet_dict = {
-                                    "seq": seq,
-                                    "timestamp": ts,
-                                    "distance": dist,
-                                    "tilt": tilt,
-                                    "gauge": gauge
-                                }
-                                if self.callback:
-                                    self.callback(packet_dict)
+                        unpacked = struct.unpack(PACKET_FMT, data)
+                        sync, seq, ts, dist, tilt, gauge, crc, status = unpacked
+                        
+                        if sync == 0x55AA55AA:
+                            # Health Report on first packet
+                            if not self.health_reported:
+                                incl_ok = "OK" if status & 0x01 else "FAIL"
+                                enco_ok = "OK" if status & 0x02 else "FAIL"
+                                print(f"\n[HW] --- HARDWARE HEALTH SUMMARY ---")
+                                print(f"[HW] Inclinometer (SCL3300): {incl_ok}")
+                                print(f"[HW] Encoder (eQEP/PRU):    {enco_ok}")
+                                print(f"[HW] -------------------------------\n")
+                                self.health_reported = True
+
+                            packet_dict = {
+                                "seq": seq,
+                                "status": status,
+                                "timestamp": ts,
+                                "distance": dist,
+                                "tilt": tilt,
+                                "gauge": gauge
+                            }
+                            if self.callback:
+                                self.callback(packet_dict)
                         
             except Exception as e:
                 print(f"[NET] Connection error: {e}")
+                self.health_reported = False
                 time.sleep(2)
 
     def stop(self):

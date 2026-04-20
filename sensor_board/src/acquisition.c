@@ -1,8 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <errno.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <unistd.h>
 #include <sys/ioctl.h>
 #include <linux/spi/spidev.h>
 #include <stdint.h>
@@ -26,6 +27,7 @@
 static int spi_fd = -1;
 static int eqep_fd = -1;
 static uint32_t *pru_mem = NULL;
+static uint8_t hw_status = 0;
 
 // Circular Buffer for Averaging
 static double tilt_buffer[AVG_WINDOW] = {0};
@@ -61,10 +63,10 @@ static char found_eqep_path[128] = "";
 
 static int find_eqep_path() {
     const char *candidates[] = {
+        "/sys/devices/platform/ocp/48304000.epwmss/48304180.eqep/position",
+        "/sys/devices/platform/ocp/48300000.epwmss/48300180.eqep/position",
         "/sys/devices/platform/ocp/48304000.epwmss/48304180.eqep/counter/count0/count",
-        "/sys/devices/platform/ocp/48300000.epwmss/48300180.eqep/counter/count0/count",
-        "/sys/bus/counter/devices/counter0/count",
-        "/sys/bus/counter/devices/counter1/count"
+        "/sys/bus/counter/devices/counter0/count"
     };
     for (int i = 0; i < 4; i++) {
         if (access(candidates[i], R_OK) == 0) {
@@ -89,6 +91,7 @@ int init_hardware() {
         ioctl(spi_fd, SPI_IOC_WR_MODE, &mode);
         ioctl(spi_fd, SPI_IOC_WR_MAX_SPEED_HZ, &speed);
         printf("[HW] Inclinometer (SPI) Initialized.\n");
+        hw_status |= STATUS_INCL_OK;
     }
 
     // 2. PRU Memory Setup
@@ -107,6 +110,7 @@ int init_hardware() {
         eqep_fd = open(found_eqep_path, O_RDONLY);
         if (eqep_fd >= 0) {
             printf("[HW] eQEP Initialized at %s\n", found_eqep_path);
+            hw_status |= STATUS_ENCODER_OK;
         }
     } else {
         printf("[HW] eQEP not found. Falling back to PRU/Simulation.\n");
@@ -217,5 +221,6 @@ void get_sensor_packet(sensor_packet_t *packet) {
     pthread_mutex_unlock(&data_mutex);
     
     packet->gauge = 1676.0f; // Constant as requested
+    packet->status = hw_status;
     packet->crc = calculate_packet_checksum(packet);
 }
