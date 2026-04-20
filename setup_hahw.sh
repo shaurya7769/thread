@@ -1,50 +1,33 @@
 #!/bin/bash
-# Master Setup Script: Rail Inspection HAHW Architecture (Optimized for Buster)
+# Master Setup Script: Rail Inspection HAHW Architecture (Final Optimized)
 # Targets: BeagleBone Black (Debian/Ubuntu)
 
 echo "---------------------------------------------------------"
 echo "  1. Installing Dependencies (Libraries & PRU Support)   "
 echo "---------------------------------------------------------"
 sudo apt-get update
-sudo apt-get install -y \
-    build-essential \
-    python3-pyqt5 \
-    python3-requests \
-    python3-pip \
-    git \
-    pru-software-support-package || echo "Note: some PRU packages not in apt, continuing..."
+sudo apt-get install -y build-essential python3-pyqt5 python3-pip git pru-software-support-package || true
 
-# config-pin detection
-if ! command -v config-pin &> /dev/null; then
-    echo "config-pin not in PATH, checking /usr/bin..."
-    if [ -f /usr/bin/config-pin ]; then
-        alias config-pin='/usr/bin/config-pin'
-    else
-        echo "Installing beaglebone-universal-io..."
-        sudo apt-get install -y beaglebone-universal-io || echo "Please install universal-io manually."
-    fi
-fi
-
-# Ensure PRU headers are available
-if [ ! -d "/usr/lib/ti/pru-software-support-package/include" ]; then
-    echo "PRU headers not found. Cloning Software Support Package..."
-    sudo mkdir -p /usr/lib/ti
-    sudo git clone --depth 1 https://github.com/dinuxman/pru-software-support-package.git /usr/lib/ti/pru-software-support-package
+# Config-pin robust setup
+CONFIG_PIN=$(which config-pin || echo "/usr/bin/config-pin")
+if [ ! -f "$CONFIG_PIN" ]; then
+    echo "Installing beaglebone-universal-io..."
+    sudo apt-get install -y beaglebone-universal-io || true
 fi
 
 echo "---------------------------------------------------------"
 echo "  2. Initializing Hardware Ports (SPI & GPIO)            "
 echo "---------------------------------------------------------"
 # Rotary Encoder Pins (P8.11, P8.12 are PRU0)
-sudo config-pin P8_11 gpio
-sudo config-pin P8_12 gpio
-sudo config-pin P8_15 gpio
+sudo $CONFIG_PIN P8_11 gpio
+sudo $CONFIG_PIN P8_12 gpio
+sudo $CONFIG_PIN P8_15 gpio
 
 # SCL3300 SPI Pins
-sudo config-pin P9_17 spi_cs
-sudo config-pin P9_18 spi
-sudo config-pin P9_21 spi
-sudo config-pin P9_22 spi_sclk
+sudo $CONFIG_PIN P9_17 spi_cs
+sudo $CONFIG_PIN P9_18 spi
+sudo $CONFIG_PIN P9_21 spi
+sudo $CONFIG_PIN P9_22 spi_sclk
 
 echo "---------------------------------------------------------"
 echo "  3. Building & Loading the Distributed Architecture      "
@@ -53,27 +36,39 @@ cd sensor_board
 make clean
 make
 
-# Copy firmware to standard location
-# Based on P8.11/12, we target PRU0 (remoteproc0)
-FW_DEST="/lib/firmware/am335x-pru0-fw"
-sudo cp pru/encoder_pru.out $FW_DEST
-
-# Detect remoteproc node for PRU0
-REMOTELOC=$(ls /sys/class/remoteproc/ | grep remoteproc0 || ls /sys/class/remoteproc/ | head -n 1)
-
-echo "Initializing PRU Core ($REMOTELOC)..."
-# Force stop if running
-if [ -f "/sys/class/remoteproc/$REMOTELOC/state" ]; then
-    CURRENT_STATE=$(cat /sys/class/remoteproc/$REMOTELOC/state)
-    if [ "$CURRENT_STATE" == "running" ]; then
-        echo "stop" | sudo tee /sys/class/remoteproc/$REMOTELOC/state || true
-        sleep 1
+# Identify the correct remoteproc node for PRU0 (4a334000.pru)
+REMOTELOC=""
+for dir in /sys/class/remoteproc/remoteproc*; do
+    if [ -f "$dir/name" ]; then
+        NAME=$(cat "$dir/name")
+        if [[ "$NAME" == *"4a334000.pru"* ]]; then
+            REMOTELOC=$(basename "$dir")
+            break
+        fi
     fi
+done
+
+if [ -z "$REMOTELOC" ]; then
+    echo "[ERROR] Could not find PRU0 (4a334000.pru) in /sys/class/remoteproc/"
+    exit 1
 fi
 
-echo "am335x-pru0-fw" | sudo tee /sys/class/remoteproc/$REMOTELOC/firmware || echo "Error setting firmware name"
-sleep 1
-echo "start" | sudo tee /sys/class/remoteproc/$REMOTELOC/state || echo "Error: Start failed. Make sure firmware exists in /lib/firmware"
+echo "Targeting PRU0 on $REMOTELOC..."
+
+# Copy firmware to standard location
+FW_NAME="am335x-pru0-fw"
+sudo cp pru/encoder_pru.out /lib/firmware/$FW_NAME
+
+# Load and Start
+echo "Initializing PRU Core ($REMOTELOC)..."
+if [ -f "/sys/class/remoteproc/$REMOTELOC/state" ]; then
+    # Use sudo tee for permissions
+    echo "stop" | sudo tee /sys/class/remoteproc/$REMOTELOC/state > /dev/null || true
+    sleep 1
+    echo "$FW_NAME" | sudo tee /sys/class/remoteproc/$REMOTELOC/firmware > /dev/null
+    sleep 1
+    echo "start" | sudo tee /sys/class/remoteproc/$REMOTELOC/state > /dev/null
+fi
 cd ..
 
 echo "---------------------------------------------------------"
@@ -83,9 +78,9 @@ PRU_STATE=$(cat /sys/class/remoteproc/$REMOTELOC/state)
 echo "PRU STATUS: $PRU_STATE"
 
 if [ "$PRU_STATE" == "running" ]; then
-    echo "[SUCCESS] PRU firmware loaded and running."
+    echo "[SUCCESS] PRU firmware loaded and running on $REMOTELOC."
 else
-    echo "[ERROR] PRU failed to start. Check 'dmesg | grep remoteproc'"
+    echo "[ERROR] PRU failed to start. Run 'dmesg' for details."
 fi
 
 echo "SETUP COMPLETE."

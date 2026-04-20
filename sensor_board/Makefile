@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -O2 -pthread
+CFLAGS = -Wall -O2 -pthread -D_DEFAULT_SOURCE
 LIBS = -lpthread -lrt
 PRU_CGT = /usr/share/ti/cgt-pru
 PRU_SSP = /usr/lib/ti/pru-software-support-package
@@ -30,9 +30,10 @@ $(TARGET): $(OBJS)
 
 pru_firmware: pru/encoder_pru.c
 	@echo "Building PRU firmware..."
+	# Compile
 	$(CLPRU) $(PRU_INC) -v3 -O2 -c pru/encoder_pru.c --obj_directory=pru/
-	$(CLPRU) -z pru/encoder_pru.obj pru/pru.cmd -o pru/encoder_pru.out
-
+	# Link with explicit entry point and retain settings
+	$(CLPRU) -z pru/encoder_pru.obj pru/pru.cmd -o pru/encoder_pru.out --entry_point=main --warn_sections --diag_warning=225
 
 clean:
 	rm -f $(TARGET) src/*.o pru/*.obj pru/*.out

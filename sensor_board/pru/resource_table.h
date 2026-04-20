@@ -12,6 +12,7 @@ struct my_resource_table {
 
 #if !defined(__GNUC__)
 #pragma DATA_SECTION(resourceTable, ".resource_table")
+#pragma RETAIN(resourceTable)
 #endif
 
 #ifdef __GNUC__
