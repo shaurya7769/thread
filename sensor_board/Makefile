@@ -18,11 +18,13 @@ sensor_service: src/tcp_server.c src/acquisition.c
 	$(CC) $(CFLAGS) -o sensor_service src/tcp_server.c src/acquisition.c $(LIBS) -lm
 
 pru_firmware: pru/encoder_pru.c
-	@echo "Checking for clpru..."
+	@echo "Building PRU firmware..."
 	@if [ -d "$(PRU_CGT)/bin" ]; then \
-		$(PRU_CGT)/bin/clpru $(PRU_INC) -O2 pru/encoder_pru.c -z pru/pru.cmd -o pru/encoder_pru.out; \
+		$(PRU_CGT)/bin/clpru $(PRU_INC) -O2 -c pru/encoder_pru.c -obj_directory=pru/ ; \
+		$(PRU_CGT)/bin/clpru -z pru/encoder_pru.obj pru/pru.cmd -o pru/encoder_pru.out ; \
 	elif command -v clpru >/dev/null 2>&1; then \
-		clpru $(PRU_INC) -O2 pru/encoder_pru.c -z pru/pru.cmd -o pru/encoder_pru.out; \
+		clpru $(PRU_INC) -O2 -c pru/encoder_pru.c -obj_directory=pru/ ; \
+		clpru -z pru/encoder_pru.obj pru/pru.cmd -o pru/encoder_pru.out ; \
 	else \
 		echo ">> Compilation failure: clpru not found"; exit 1; \
 	fi

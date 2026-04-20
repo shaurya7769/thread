@@ -59,9 +59,13 @@ void *stream_thread(void *arg) {
     return NULL;
 }
 
+extern void start_polling();
+
 int main() {
     if (init_hardware() != 0) {
         printf("Hardware initialization failed. Running in simulation mode.\n");
+    } else {
+        start_polling();
     }
 
     pthread_t thread;
@@ -70,3 +74,4 @@ int main() {
 
     return 0;
 }
+

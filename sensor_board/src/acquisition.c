@@ -7,6 +7,7 @@
 #include <sys/mman.h>
 #include <math.h>
 #include <time.h>
+#include <pthread.h>
 #include "common.h"
 
 #ifndef M_PI
@@ -16,8 +17,18 @@
 #define PRU_SHARED_RAM 0x4A310000 
 #define PRU_RAM_SIZE 0x3000
 
+#define AVG_WINDOW 20
+#define POLL_INTERVAL_US 2000 // 500 Hz
+
 static int spi_fd = -1;
 static uint32_t *pru_mem = NULL;
+
+// Circular Buffer for Averaging
+static double tilt_buffer[AVG_WINDOW] = {0};
+static int tilt_idx = 0;
+static double tilt_sum = 0;
+static pthread_mutex_t data_mutex = PTHREAD_MUTEX_INITIALIZER;
+static int buffer_filled = 0;
 
 // SCL3300 Hardware CRC-8 (Polynomial 0x1D)
 uint8_t calculate_crc8(uint8_t *data, int len) {
@@ -90,7 +101,7 @@ int init_hardware() {
     return 0;
 }
 
-double read_scl3300() {
+double read_scl3300_raw() {
     static int crc_error_count = 0;
     
     // SCL3300 Read Tilt (X-axis) - 32-bit Off-frame protocol
@@ -108,12 +119,11 @@ double read_scl3300() {
     if (ioctl(spi_fd, SPI_IOC_MESSAGE(1), &tr) < 0) {
         crc_error_count++;
     } else {
-        // Validate CRC of the frame received (rx[3] is CRC)
         uint8_t calc = calculate_crc8(rx, 3);
         if (calc != rx[3]) {
             crc_error_count++;
         } else {
-            crc_error_count = 0; // Reset on success
+            crc_error_count = 0;
             int16_t raw = (int16_t)((rx[1] << 8) | rx[2]);
             double g = (double)raw / 12000.0;
             if (g > 1.0) g = 1.0;
@@ -122,10 +132,7 @@ double read_scl3300() {
         }
     }
 
-    // Auto-reinitialize if sensor seems disconnected or glitched
     if (crc_error_count > 5) {
-        printf("[SENSOR] SCL3300 repeated error. Re-initializing...\n");
-        // Wake up and mode sequence again
         uint8_t wakeup[] = {0x1C, 0x00, 0x00, 0xAD}; 
         uint8_t mode1[]  = {0x14, 0x00, 0x00, 0xC7};
         struct spi_ioc_transfer tr_init = { .tx_buf = (unsigned long)wakeup, .len = 4, .speed_hz = 2000000 };
@@ -134,15 +141,37 @@ double read_scl3300() {
         tr_init.tx_buf = (unsigned long)mode1;
         ioctl(spi_fd, SPI_IOC_MESSAGE(1), &tr_init);
         usleep(50000);
-        crc_error_count = 0; // Attempt reset
+        crc_error_count = 0;
     }
-
     return 0.0;
+}
+
+void *polling_thread(void *arg) {
+    while (1) {
+        double val = read_scl3300_raw();
+        
+        pthread_mutex_lock(&data_mutex);
+        tilt_sum -= tilt_buffer[tilt_idx];
+        tilt_buffer[tilt_idx] = val;
+        tilt_sum += val;
+        tilt_idx = (tilt_idx + 1) % AVG_WINDOW;
+        if (!buffer_filled && tilt_idx == 0) buffer_filled = 1;
+        pthread_mutex_unlock(&data_mutex);
+        
+        usleep(POLL_INTERVAL_US);
+    }
+    return NULL;
+}
+
+void start_polling() {
+    pthread_t thread;
+    pthread_create(&thread, NULL, polling_thread, NULL);
+    pthread_detach(thread);
 }
 
 int32_t read_encoder() {
     if (pru_mem) {
-        return (int32_t)pru_mem[0]; // Offset 0 was count in our PRU code
+        return (int32_t)pru_mem[0];
     }
     return 0;
 }
@@ -151,12 +180,18 @@ void get_sensor_packet(sensor_packet_t *packet) {
     static uint16_t seq = 0;
     packet->sync = SYNC_TAG;
     packet->seq = seq++;
-    packet->timestamp = (uint64_t)time(NULL) * 1000;
     
-    // Scale encoder: 4000 pulses/rev, 200mm/rev -> 0.05mm per pulse
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    packet->timestamp = (uint64_t)ts.tv_sec * 1000 + (ts.tv_nsec / 1000000);
+    
+    // Scale encoder: 4000 pulses/rev, 200mm/rev -> 0.00005m per pulse
     packet->distance = (double)read_encoder() * 0.00005; 
     
-    packet->tilt = read_scl3300();
-    packet->gauge = 1676.0f;
+    pthread_mutex_lock(&data_mutex);
+    packet->tilt = tilt_sum / (buffer_filled ? AVG_WINDOW : (tilt_idx ? tilt_idx : 1));
+    pthread_mutex_unlock(&data_mutex);
+    
+    packet->gauge = 1676.0f; // Constant as requested
     packet->crc = calculate_packet_checksum(packet);
 }

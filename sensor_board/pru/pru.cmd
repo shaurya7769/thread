@@ -1,5 +1,4 @@
 /* Map PRU memory for AM335x */
--cr
 
 MEMORY
 {
