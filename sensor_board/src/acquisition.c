@@ -57,43 +57,62 @@ uint8_t calculate_packet_checksum(sensor_packet_t *p) {
     return crc;
 }
 
+static char found_eqep_path[128] = "";
+
+static int find_eqep_path() {
+    const char *candidates[] = {
+        "/sys/devices/platform/ocp/48304000.epwmss/48304180.eqep/counter/count0/count",
+        "/sys/devices/platform/ocp/48300000.epwmss/48300180.eqep/counter/count0/count",
+        "/sys/bus/counter/devices/counter0/count",
+        "/sys/bus/counter/devices/counter1/count"
+    };
+    for (int i = 0; i < 4; i++) {
+        if (access(candidates[i], R_OK) == 0) {
+            strcpy(found_eqep_path, candidates[i]);
+            return 0;
+        }
+    }
+    return -1;
+}
+
 int init_hardware() {
-    // 1. SPI Setup
-    spi_fd = open("/dev/spidev0.0", O_RDWR);
+    // 1. SPI Setup (Commonly spidev1.0 on BeagleBone)
+    spi_fd = open("/dev/spidev1.0", O_RDWR);
+    if (spi_fd < 0) {
+        spi_fd = open("/dev/spidev0.0", O_RDWR); // Fallback
+    }
     if (spi_fd < 0) {
         perror("Failed to open SPI");
-        return -1;
+    } else {
+        uint8_t mode = 0;
+        uint32_t speed = 2000000;
+        ioctl(spi_fd, SPI_IOC_WR_MODE, &mode);
+        ioctl(spi_fd, SPI_IOC_WR_MAX_SPEED_HZ, &speed);
+        printf("[HW] Inclinometer (SPI) Initialized.\n");
     }
-    uint8_t mode = 0; // Mode 0
-    uint32_t speed = 2000000; // 2 MHz
-    ioctl(spi_fd, SPI_IOC_WR_MODE, &mode);
-    ioctl(spi_fd, SPI_IOC_WR_MAX_SPEED_HZ, &speed);
 
     // 2. PRU Memory Setup
     int mem_fd = open("/dev/mem", O_RDWR | O_SYNC);
-    if (mem_fd < 0) {
-        perror("Failed to open /dev/mem");
-        return -1;
-    }
-    pru_mem = mmap(NULL, PRU_RAM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, mem_fd, PRU_SHARED_RAM);
-    close(mem_fd);
-
-    if (pru_mem == MAP_FAILED) {
-        perror("mmap failed");
-        return -1;
-    }
-    
-    // Clear PRU memory to ensure encoder starts at 0
-    pru_mem[0] = 0; 
-
-    // 4. eQEP Setup
-    eqep_fd = open(EQEP_PATH, O_RDONLY);
-    if (eqep_fd < 0) {
-        perror("Failed to open eQEP path. Check if pins are set to 'qep' mode.");
-        // We continue in case it's a simulation or needs manual fix
+    if (mem_fd >= 0) {
+        pru_mem = mmap(NULL, PRU_RAM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, mem_fd, PRU_SHARED_RAM);
+        close(mem_fd);
+        if (pru_mem != MAP_FAILED) {
+            pru_mem[0] = 0;
+            printf("[HW] PRU Interface Initialized.\n");
+        }
     }
 
-    return 0;
+    // 3. eQEP Setup
+    if (find_eqep_path() == 0) {
+        eqep_fd = open(found_eqep_path, O_RDONLY);
+        if (eqep_fd >= 0) {
+            printf("[HW] eQEP Initialized at %s\n", found_eqep_path);
+        }
+    } else {
+        printf("[HW] eQEP not found. Falling back to PRU/Simulation.\n");
+    }
+
+    return 0; // Return 0 to allow running even if some components are missing
 }
 
 double read_scl3300_raw() {

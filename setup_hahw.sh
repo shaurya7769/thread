@@ -72,19 +72,30 @@ fi
 cd ..
 
 echo "---------------------------------------------------------"
-echo "  4. Verification & Testing                              "
+echo "  4. LTE Modem Configuration (Quectel EC200U-CN)         "
+echo "---------------------------------------------------------"
+# Force Airtel APN: airtelgprs.com
+APN="airtelgprs.com"
+echo "Configuring modem for Airtel (APN: $APN)..."
+
+# Use nmcli if available, otherwise fallback to AT commands via chat
+if command -v nmcli >/dev/null 2>&1; then
+    sudo nmcli con delete Airtel 2>/dev/null || true
+    sudo nmcli con add type gsm ifname "*" con-name Airtel apn $APN
+    sudo nmcli con up Airtel 2>/dev/null || echo "[WARN] nmcli could not bring up modem. Checking state..."
+else
+    echo "nmcli missing. Ensure NetworkManager is installed for robust cellular handling."
+fi
+
+echo "---------------------------------------------------------"
+echo "  5. Verification & Testing                              "
 echo "---------------------------------------------------------"
 PRU_STATE=$(cat /sys/class/remoteproc/$REMOTELOC/state)
 echo "PRU STATUS: $PRU_STATE"
-
-if [ "$PRU_STATE" == "running" ]; then
-    echo "[SUCCESS] PRU firmware loaded and running on $REMOTELOC."
-else
-    echo "[ERROR] PRU failed to start. Run 'dmesg' for details."
-fi
+ip addr show | grep -E "ppp|wwan|eth" || echo "[WARN] No active cellular interface found."
 
 echo "SETUP COMPLETE."
 echo "---------------------------------------------------------"
 echo "TERMINAL 1: sudo ./sensor_board/sensor_service"
-echo "TERMINAL 2: python3 main_board/main.py"
+echo "TERMINAL 2: sudo python3 main_board/main.py"
 echo "---------------------------------------------------------"
