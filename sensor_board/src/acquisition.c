@@ -18,11 +18,13 @@
 
 #define PRU_SHARED_RAM 0x4A310000 
 #define PRU_RAM_SIZE 0x3000
+#define EQEP_PATH "/sys/devices/platform/ocp/48304000.epwmss/48304180.eqep/counter/count0/count"
 
 #define AVG_WINDOW 20
 #define POLL_INTERVAL_US 2000 // 500 Hz
 
 static int spi_fd = -1;
+static int eqep_fd = -1;
 static uint32_t *pru_mem = NULL;
 
 // Circular Buffer for Averaging
@@ -84,21 +86,12 @@ int init_hardware() {
     // Clear PRU memory to ensure encoder starts at 0
     pru_mem[0] = 0; 
 
-    // 3. SCL3300 Initialization Sequence
-    uint8_t wakeup[] = {0x1C, 0x00, 0x00, 0xAD}; // Wake up
-    uint8_t mode1[]  = {0x14, 0x00, 0x00, 0xC7}; // Change to mode 1
-    
-    struct spi_ioc_transfer tr[1] = {0};
-    tr[0].tx_buf = (unsigned long)wakeup;
-    tr[0].len = 4;
-    tr[0].speed_hz = 2000000;
-    
-    ioctl(spi_fd, SPI_IOC_MESSAGE(1), tr);
-    usleep(100000); // 100ms
-    
-    tr[0].tx_buf = (unsigned long)mode1;
-    ioctl(spi_fd, SPI_IOC_MESSAGE(1), tr);
-    usleep(100000); // 100ms
+    // 4. eQEP Setup
+    eqep_fd = open(EQEP_PATH, O_RDONLY);
+    if (eqep_fd < 0) {
+        perror("Failed to open eQEP path. Check if pins are set to 'qep' mode.");
+        // We continue in case it's a simulation or needs manual fix
+    }
 
     return 0;
 }
@@ -172,6 +165,16 @@ void start_polling() {
 }
 
 int32_t read_encoder() {
+    if (eqep_fd >= 0) {
+        char buf[32];
+        lseek(eqep_fd, 0, SEEK_SET);
+        int n = read(eqep_fd, buf, sizeof(buf) - 1);
+        if (n > 0) {
+            buf[n] = '\0';
+            return atoi(buf);
+        }
+    }
+    // Fallback to PRU if eQEP fails
     if (pru_mem) {
         return (int32_t)pru_mem[0];
     }

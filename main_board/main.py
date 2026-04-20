@@ -1,9 +1,4 @@
-import sys
-from PyQt5.QtWidgets import QApplication
-from PyQt5.QtCore import QTimer
-from network.tcp_client import SensorClient
-from logic.calc_engine import CalculationEngine
-from gui.dashboard import Dashboard
+from gui.dashboard import MainDashboard
 
 class RailApp:
     def __init__(self):
@@ -12,9 +7,10 @@ class RailApp:
         # 1. Logic Engine
         self.logic = CalculationEngine(gauge_base=1676.0)
         
-        # 2. UI Dashboard
-        self.gui = Dashboard()
-        self.gui.show()
+        # 2. UI Dashboard (Rich Portfolio Design)
+        self.gui = MainDashboard()
+        self.gui.topbar.sig_exit.connect(self.close_app)
+        self.gui.showFullScreen()
         
         # Latest data state
         self.latest_processed = None
@@ -24,7 +20,7 @@ class RailApp:
         self.ui_timer.timeout.connect(self.refresh_ui)
         self.ui_timer.start(33)
         
-        # 4. Network Client (Receives at 100Hz)
+        # 4. Network Client (Receives at 100Hz from C sensor_service)
         self.network = SensorClient(host="localhost", port=5060, callback=self.on_data)
         self.network.start()
 
@@ -36,14 +32,16 @@ class RailApp:
     def refresh_ui(self):
         """Standard UI Refresh (30Hz)"""
         if self.latest_processed:
-            self.gui.update_data(self.latest_processed)
+            # Pass data down to the richness dashboard pages
+            self.gui.dash_page.update_data(self.latest_processed)
+
+    def close_app(self):
+        print("[APP] Shutting down...")
+        self.network.stop()
+        self.app.quit()
 
     def run(self):
-        try:
-            sys.exit(self.app.exec_())
-        except KeyboardInterrupt:
-            self.network.stop()
-            self.cloud.stop()
+        sys.exit(self.app.exec_())
 
 if __name__ == "__main__":
     app = RailApp()

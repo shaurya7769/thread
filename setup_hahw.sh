@@ -18,9 +18,9 @@ fi
 echo "---------------------------------------------------------"
 echo "  2. Initializing Hardware Ports (SPI & GPIO)            "
 echo "---------------------------------------------------------"
-# Rotary Encoder Pins (P8.11, P8.12 are PRU0)
-sudo $CONFIG_PIN P8_11 gpio
-sudo $CONFIG_PIN P8_12 gpio
+# Rotary Encoder Pins (P8.11, P8.12 set to QEP mode for hardware decoding)
+sudo $CONFIG_PIN P8_11 qep
+sudo $CONFIG_PIN P8_12 qep
 sudo $CONFIG_PIN P8_15 gpio
 
 # SCL3300 SPI Pins
