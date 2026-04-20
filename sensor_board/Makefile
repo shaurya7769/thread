@@ -1,33 +1,38 @@
 CC = gcc
 CFLAGS = -Wall -O2 -pthread
-LIBS = -lpthread
+LIBS = -lpthread -lrt
+PRU_CGT = /usr/share/ti/cgt-pru
+PRU_SSP = /usr/lib/ti/pru-software-support-package
 
-# Auto-detect PRU CGT path
-PRU_CGT ?= $(shell if [ -d /usr/share/ti/cgt-pru ]; then echo /usr/share/ti/cgt-pru; elif [ -d /usr/lib/ti/cgt-pru ]; then echo /usr/lib/ti/cgt-pru; else echo /usr; fi)
-PRU_SSP ?= /usr/lib/ti/pru-software-support-package
+# Detection fallback for clpru
+CLPRU = $(shell if [ -f $(PRU_CGT)/bin/clpru ]; then echo $(PRU_CGT)/bin/clpru; else echo clpru; fi)
 
-# Point to standard PRU support headers (Buster/Trixie common paths)
-PRU_INC = -I$(PRU_CGT)/include \
-          -I$(PRU_SSP)/include \
-          -I$(PRU_SSP)/include/am335x \
-          -I/usr/include/pru
+# Only include PRU paths if they exist to avoid confusing clpru
+PRU_INC = -I.
+ifneq ($(wildcard $(PRU_CGT)/include),)
+    PRU_INC += -I$(PRU_CGT)/include
+endif
+ifneq ($(wildcard $(PRU_SSP)/include),)
+    PRU_INC += -I$(PRU_SSP)/include
+    PRU_INC += -I$(PRU_SSP)/include/am335x
+endif
 
-all: sensor_service pru_firmware
+TARGET = sensor_service
+OBJS = src/tcp_server.o src/acquisition.o
 
-sensor_service: src/tcp_server.c src/acquisition.c
-	$(CC) $(CFLAGS) -o sensor_service src/tcp_server.c src/acquisition.c $(LIBS) -lm
+all: $(TARGET) pru_firmware
+
+$(TARGET): $(OBJS)
+	$(CC) $(CFLAGS) -o $@ $^ $(LIBS) -lm
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
 
 pru_firmware: pru/encoder_pru.c
 	@echo "Building PRU firmware..."
-	@if [ -d "$(PRU_CGT)/bin" ]; then \
-		$(PRU_CGT)/bin/clpru $(PRU_INC) -O2 -c pru/encoder_pru.c -obj_directory=pru/ ; \
-		$(PRU_CGT)/bin/clpru -z pru/encoder_pru.obj pru/pru.cmd -o pru/encoder_pru.out ; \
-	elif command -v clpru >/dev/null 2>&1; then \
-		clpru $(PRU_INC) -O2 -c pru/encoder_pru.c -obj_directory=pru/ ; \
-		clpru -z pru/encoder_pru.obj pru/pru.cmd -o pru/encoder_pru.out ; \
-	else \
-		echo ">> Compilation failure: clpru not found"; exit 1; \
-	fi
+	$(CLPRU) $(PRU_INC) -v3 -O2 -c pru/encoder_pru.c --obj_directory=pru/
+	$(CLPRU) -z pru/encoder_pru.obj pru/pru.cmd -o pru/encoder_pru.out
+
 
 clean:
-	rm -f sensor_service
+	rm -f $(TARGET) src/*.o pru/*.obj pru/*.out
